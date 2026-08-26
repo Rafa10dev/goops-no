@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =========================
+// ENUMS
+// =========================
+
+enum UserRole {
+  OPERATOR
+  ADMIN
+}
+
+enum ChipStatus {
+  ACTIVATED
+  DEFECTIVE
+}
+
+enum PhoneNumberStatus {
+  AVAILABLE
+  ALLOCATED
+  RESTRICTED
+  BANNED
+}
+
+enum ConnectionStatus {
+  ALLOCATED
+  RECONNECTED
+  RESTRICTED
+  BANNED
+}
+
+// =========================
+// USER
+// =========================
+
+model User {
+  id       Int      @id @default(autoincrement())
+  name     String
+  email    String   @unique
+  password String
+  role     UserRole @default(OPERATOR)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  connectionsCreated Connection[] @relation("ConnectionCreatedBy")
+  assignedUrls       UserUrl[]
+}
+
+// =========================
+// COMPANY
+// =========================
+
+model Company {
+  id   Int    @id @default(autoincrement())
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  urls        Url[]
+  connections Connection[]
+}
+
+// =========================
+// URL
+// =========================
+
+model Url {
+  id   Int    @id @default(autoincrement())
+  name String
+  url  String
+
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedUsers UserUrl[]
+  connections   Connection[]
+
+  @@unique([companyId, name])
+  @@unique([companyId, url])
+}
+
+// =========================
+// USER ↔ URL
+// =========================
+
+model UserUrl {
+  userId Int
+  urlId  Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url  Url  @relation(fields: [urlId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+
+  @@id([userId, urlId])
+}
+
+// =========================
+// CHIP
+// =========================
+
+model Chip {
+  id          String     @id @default(uuid())
+  status      ChipStatus
+  activatedAt DateTime   @default(now())
+  createdAt   DateTime   @default(now())
+
+  phoneNumber PhoneNumber?
+}
+
+// =========================
+// PHONE NUMBER
+// =========================
+
+model PhoneNumber {
+  id          String            @id @default(uuid())
+  phoneNumber String            @unique
+  status      PhoneNumberStatus @default(AVAILABLE)
+
+  chipId String @unique
+  chip   Chip   @relation(fields: [chipId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  connections Connection[]
+}
+
+// =========================
+// CELLPHONE
+// =========================
+
+model Cellphone {
+  id    Int     @id @default(autoincrement())
+  name  String?
+  model String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  slots CellphoneSlot[]
+}
+
+// =========================
+// CELLPHONE SLOT
+// =========================
+
+model CellphoneSlot {
+  id Int @id @default(autoincrement())
+
+  cellphoneId Int
+  cellphone   Cellphone @relation(fields: [cellphoneId], references: [id], onDelete: Cascade)
+
+  slotNumber Int
+
+  connections Connection[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([cellphoneId, slotNumber])
+}
+
+// =========================
+// CONNECTION
+// =========================
+
+model Connection {
+  id Int @id @default(autoincrement())
+
+  status ConnectionStatus @default(ALLOCATED)
+
+  phoneNumberId String
+  phoneNumber   PhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Restrict)
+
+  cellphoneSlotId Int
+  cellphoneSlot   CellphoneSlot @relation(fields: [cellphoneSlotId], references: [id], onDelete: Restrict)
+
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  urlId Int
+  url   Url @relation(fields: [urlId], references: [id], onDelete: Restrict)
+
+  createdById Int
+  createdBy   User @relation("ConnectionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
