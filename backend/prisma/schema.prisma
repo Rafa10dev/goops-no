@@ -28,11 +28,27 @@ enum PhoneNumberStatus {
   BANNED
 }
 
+enum WhatsappProfileStatus {
+  NOT_CREATED
+  ACTIVE
+}
+
+enum ConnectionType {
+  INITIAL
+  RECONNECTION
+}
+
 enum ConnectionStatus {
   ALLOCATED
   RECONNECTED
   RESTRICTED
   BANNED
+}
+
+enum PhoneNumberHistoryType {
+  ACTIVATION
+  CONNECTION
+  STATUS_CHANGE
 }
 
 // =========================
@@ -49,8 +65,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  connectionsCreated Connection[] @relation("ConnectionCreatedBy")
-  assignedUrls       UserUrl[]
+  connectionsCreated Connection[]        @relation("ConnectionCreatedBy")
+  assignedUrls        UserUrl[]
+  chipActivations     ChipActivation[]
+  phoneNumberHistory  PhoneNumberHistory[]
 }
 
 // =========================
@@ -73,7 +91,7 @@ model Company {
 // =========================
 
 model Url {
-  id   Int    @id @default(autoincrement())
+  id  Int    @id @default(autoincrement())
   name String
   url  String
 
@@ -111,12 +129,37 @@ model UserUrl {
 // =========================
 
 model Chip {
-  id          String     @id @default(uuid())
-  status      ChipStatus
-  activatedAt DateTime   @default(now())
-  createdAt   DateTime   @default(now())
+  id     String     @id @default(uuid())
+  status ChipStatus
 
-  phoneNumber PhoneNumber?
+  createdAt DateTime @default(now())
+
+  activations ChipActivation[]
+}
+
+// =========================
+// CHIP ACTIVATION
+// =========================
+
+model ChipActivation {
+  id String @id @default(uuid())
+
+  chipId String
+  chip   Chip @relation(fields: [chipId], references: [id], onDelete: Restrict)
+
+  phoneNumberId String
+  phoneNumber   PhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Restrict)
+
+  activatedById Int
+  activatedBy   User @relation(fields: [activatedById], references: [id], onDelete: Restrict)
+
+  status ChipStatus
+
+  activatedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  phoneNumberHistory PhoneNumberHistory[]
 }
 
 // =========================
@@ -124,17 +167,19 @@ model Chip {
 // =========================
 
 model PhoneNumber {
-  id          String            @id @default(uuid())
-  phoneNumber String            @unique
-  status      PhoneNumberStatus @default(AVAILABLE)
+  id          String @id @default(uuid())
+  phoneNumber String @unique
 
-  chipId String @unique
-  chip   Chip   @relation(fields: [chipId], references: [id], onDelete: Restrict)
+  status PhoneNumberStatus @default(AVAILABLE)
+
+  whatsappProfileStatus WhatsappProfileStatus @default(NOT_CREATED)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  activations ChipActivation[]
   connections Connection[]
+  history     PhoneNumberHistory[]
 }
 
 // =========================
@@ -178,6 +223,7 @@ model CellphoneSlot {
 model Connection {
   id Int @id @default(autoincrement())
 
+  type   ConnectionType
   status ConnectionStatus @default(ALLOCATED)
 
   phoneNumberId String
@@ -197,4 +243,34 @@ model Connection {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  phoneNumberHistory PhoneNumberHistory[]
+}
+
+// =========================
+// PHONE NUMBER HISTORY
+// =========================
+
+model PhoneNumberHistory {
+  id String @id @default(uuid())
+
+  phoneNumberId String
+  phoneNumber   PhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+
+  type PhoneNumberHistoryType
+
+  operatorId Int
+  operator   User @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+
+  connectionId Int?
+  connection   Connection? @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+
+  chipActivationId String?
+  chipActivation   ChipActivation? @relation(fields: [chipActivationId], references: [id], onDelete: Restrict)
+
+  description String?
+
+  createdAt DateTime @default(now())
+
+  @@index([phoneNumberId, createdAt])
 }
